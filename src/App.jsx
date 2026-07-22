@@ -4,6 +4,7 @@ import {
 } from "./storage.js";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const STATUSES = ["pendiente", "pedido", "recibido"];
 
 function domain(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
@@ -79,10 +80,25 @@ function Garage({ code, onExit }) {
   const [showNewProj, setShowNewProj] = useState(false);
   const [projForm, setProjForm] = useState({ name: "", code: "" });
   const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmPart, setConfirmPart] = useState(null);
+  const [filter, setFilter] = useState("todas");
+  const [sort, setSort] = useState("recientes");
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", url: "", price: "", qty: "1" });
+  const nameRef = useRef(null);
   const activeRef = useRef(active);
   activeRef.current = active;
 
-  useEffect(() => { setConfirmDel(false); }, [active]);
+  useEffect(() => {
+    setConfirmDel(false); setConfirmPart(null); setEditing(null); setFilter("todas");
+  }, [active]);
+
+  // la confirmación de borrado de pieza caduca sola
+  useEffect(() => {
+    if (!confirmPart) return;
+    const t = setTimeout(() => setConfirmPart(null), 3500);
+    return () => clearTimeout(t);
+  }, [confirmPart]);
 
   const applyData = useCallback((d) => {
     if (!d) return;
@@ -168,15 +184,50 @@ function Garage({ code, onExit }) {
       return d;
     });
     setForm({ name: "", url: "", price: "", qty: "1" });
+    nameRef.current?.focus();
   };
 
-  const cycleStatus = (pid, partId) => {
-    const order = ["pendiente", "pedido", "recibido"];
+  const bumpQty = (delta) =>
+    setForm((f) => ({ ...f, qty: String(Math.max(1, (parseInt(f.qty) || 1) + delta)) }));
+
+  const setStatus = (pid, partId, status) =>
     mutate((d) => {
       const p = (d.parts[pid] || []).find((x) => x.id === partId);
-      if (p && !p.trolled) p.status = order[(order.indexOf(p.status) + 1) % 3];
+      if (p && !p.trolled) p.status = status;
       return d;
     });
+
+  const startEdit = (p) => {
+    setConfirmPart(null);
+    setEditing(p.id);
+    setEditForm({ name: p.name, url: p.url || "", price: p.price ? String(p.price) : "", qty: String(p.qty || 1) });
+  };
+
+  const saveEdit = async () => {
+    const name = editForm.name.trim();
+    if (!name || !editing) return;
+    const patch = {
+      name,
+      url: editForm.url.trim() || null,
+      price: parseFloat(String(editForm.price).replace(",", ".")) || 0,
+      qty: Math.max(1, parseInt(editForm.qty) || 1),
+    };
+    await mutate((d) => {
+      const p = (d.parts[active] || []).find((x) => x.id === editing);
+      if (p) Object.assign(p, patch);
+      return d;
+    });
+    setEditing(null);
+  };
+
+  const onEditKey = (e) => {
+    if (e.key === "Enter") saveEdit();
+    if (e.key === "Escape") setEditing(null);
+  };
+
+  const askDelPart = (partId) => {
+    if (confirmPart === partId) { setConfirmPart(null); delPart(active, partId); }
+    else setConfirmPart(partId);
   };
 
   const toggleTroll = (pid, partId) =>
@@ -195,6 +246,16 @@ function Garage({ code, onExit }) {
   const trolled = allParts.filter((p) => p.trolled);
   const porGastar = parts.filter((p) => p.status !== "recibido").reduce((s, p) => s + p.price * p.qty, 0);
   const gastado = parts.filter((p) => p.status === "recibido").reduce((s, p) => s + p.price * p.qty, 0);
+  const total = porGastar + gastado;
+  const pct = total > 0 ? Math.round((gastado / total) * 100) : 0;
+  const counts = { todas: parts.length };
+  for (const s of STATUSES) counts[s] = parts.filter((p) => p.status === s).length;
+  const shown = parts
+    .filter((p) => filter === "todas" || p.status === filter)
+    .sort((a, b) =>
+      sort === "precio" ? b.price * b.qty - a.price * a.qty
+      : sort === "estado" ? (STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status)) || ((b.ts || 0) - (a.ts || 0))
+      : (b.ts || 0) - (a.ts || 0));
 
   return (
     <div className="pl-wrap">
@@ -253,26 +314,79 @@ function Garage({ code, onExit }) {
             <div><div className="lbl">Gastado</div><div className="val grn">{eur(gastado)}</div></div>
           </div>
 
+          {total > 0 && (
+            <div className="pl-progressrow" title={pct + "% del presupuesto ya gastado"}>
+              <div className="pl-progress"><i style={{ width: pct + "%" }} /></div>
+              <span className="pl-pct">{pct}% comprado</span>
+            </div>
+          )}
+
           <div className="pl-form">
             <div className="row">
-              <input className="grow" placeholder="Pieza (ej: CP Pistons SC7345)" value={form.name}
+              <input className="grow" ref={nameRef} placeholder="Pieza (ej: CP Pistons SC7345)" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && addPart()} />
             </div>
             <div className="row">
               <input className="grow" placeholder="Link tienda (opcional)" value={form.url}
-                onChange={(e) => setForm({ ...form, url: e.target.value })} />
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addPart()} />
               <input className="sm" placeholder="Precio €" inputMode="decimal" value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })} />
-              <input className="xs" placeholder="Uds" inputMode="numeric" value={form.qty}
-                onChange={(e) => setForm({ ...form, qty: e.target.value })} />
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addPart()} />
+              <div className="pl-qtybox">
+                <button type="button" aria-label="Menos unidades" onClick={() => bumpQty(-1)}>−</button>
+                <input placeholder="Uds" inputMode="numeric" value={form.qty}
+                  onChange={(e) => setForm({ ...form, qty: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && addPart()} />
+                <button type="button" aria-label="Más unidades" onClick={() => bumpQty(1)}>+</button>
+              </div>
               <button className="pl-btn" onClick={addPart} disabled={!form.name.trim()}>Añadir</button>
             </div>
           </div>
 
           {allParts.length === 0 && <div className="pl-empty">Sin piezas todavía. Añade la primera arriba.</div>}
 
-          {parts.map((p) => (
+          {parts.length > 0 && (
+            <div className="pl-listbar">
+              {["todas", ...STATUSES].map((f) => (
+                <button key={f} className={"pl-chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
+                  {f}<span className="n">{counts[f]}</span>
+                </button>
+              ))}
+              <select className="pl-sort" value={sort} onChange={(e) => setSort(e.target.value)}
+                aria-label="Ordenar piezas">
+                <option value="recientes">recientes</option>
+                <option value="precio">precio ↓</option>
+                <option value="estado">estado</option>
+              </select>
+            </div>
+          )}
+
+          {parts.length > 0 && shown.length === 0 && <div className="pl-empty">Nada con este filtro.</div>}
+
+          {shown.map((p) => editing === p.id ? (
+            <div key={p.id} className="pl-part editing">
+              <div className="pl-edit">
+                <div className="row">
+                  <input className="grow" autoFocus placeholder="Pieza" value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} onKeyDown={onEditKey} />
+                </div>
+                <div className="row">
+                  <input className="grow" placeholder="Link tienda (opcional)" value={editForm.url}
+                    onChange={(e) => setEditForm({ ...editForm, url: e.target.value })} onKeyDown={onEditKey} />
+                  <input className="sm" placeholder="Precio €" inputMode="decimal" value={editForm.price}
+                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} onKeyDown={onEditKey} />
+                  <input className="xs" placeholder="Uds" inputMode="numeric" value={editForm.qty}
+                    onChange={(e) => setEditForm({ ...editForm, qty: e.target.value })} onKeyDown={onEditKey} />
+                </div>
+                <div className="row">
+                  <button className="pl-btn small" onClick={saveEdit} disabled={!editForm.name.trim()}>Guardar</button>
+                  <button className="pl-mini" onClick={() => setEditing(null)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          ) : (
             <div key={p.id} className={"pl-part " + p.status}>
               <div className="info">
                 <div className="nm">
@@ -285,18 +399,26 @@ function Garage({ code, onExit }) {
                   <span>por {p.by}</span>
                   <span>{new Date(p.ts).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}</span>
                 </div>
-                <button className={"pl-status " + p.status} onClick={() => cycleStatus(active, p.id)}
-                  aria-label="Cambiar estado">
-                  {p.status}
-                </button>
+                <div className="pl-seg" role="group" aria-label="Estado de la pieza">
+                  {STATUSES.map((s) => (
+                    <button key={s} className={"seg " + s + (p.status === s ? " on" : "")}
+                      onClick={() => p.status !== s && setStatus(active, p.id, s)}>{s}</button>
+                  ))}
+                </div>
               </div>
-              <div>
+              <div className="side">
                 <div className="price">{eur(p.price * p.qty)}</div>
                 {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
               </div>
-              <button className="pl-troll" onClick={() => toggleTroll(active, p.id)}
-                aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
-              <button className="pl-x" onClick={() => delPart(active, p.id)} aria-label="Borrar pieza">✕</button>
+              <div className="acts">
+                <button className="pl-ico" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
+                <button className="pl-troll" onClick={() => toggleTroll(active, p.id)}
+                  aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
+                <button className={"pl-x" + (confirmPart === p.id ? " arm" : "")}
+                  onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
+                  {confirmPart === p.id ? "¿seguro?" : "✕"}
+                </button>
+              </div>
             </div>
           ))}
 
@@ -317,10 +439,15 @@ function Garage({ code, onExit }) {
                       <span>cazada por {p.trolledBy || "?"}</span>
                     </div>
                   </div>
-                  <div><div className="price">{eur(p.price * p.qty)}</div></div>
-                  <button className="pl-troll on" onClick={() => toggleTroll(active, p.id)}
-                    aria-label="Perdonar y devolver a la lista" title="Perdonar">🤡</button>
-                  <button className="pl-x" onClick={() => delPart(active, p.id)} aria-label="Borrar pieza">✕</button>
+                  <div className="side"><div className="price">{eur(p.price * p.qty)}</div></div>
+                  <div className="acts">
+                    <button className="pl-troll on" onClick={() => toggleTroll(active, p.id)}
+                      aria-label="Perdonar y devolver a la lista" title="Perdonar">🤡</button>
+                    <button className={"pl-x" + (confirmPart === p.id ? " arm" : "")}
+                      onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
+                      {confirmPart === p.id ? "¿seguro?" : "✕"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </>
