@@ -1,3 +1,10 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PitList · Rediseño 3SG (mockup)</title>
+<style>
 @import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
   --bg:#0c0e11; --panel:#14171c; --panel2:#1a1e25; --line:#272c35; --line2:#323945;
@@ -6,9 +13,8 @@
   --green:#3ecf6e; --troll:#c084fc; --troll-dark:#6b21a8;
   --display:'Saira Condensed',sans-serif; --body:'Barlow',sans-serif; --mono:'IBM Plex Mono',monospace;
 }
-*{box-sizing:border-box}
-body{margin:0}
-.root{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--body);
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);
   background-image:
     radial-gradient(ellipse at 15% -10%, #171b22 0%, transparent 50%),
     repeating-linear-gradient(90deg, transparent 0 119px, rgba(255,255,255,.015) 119px 120px);}
@@ -16,7 +22,7 @@ body{margin:0}
 /* ===== top bar ===== */
 .top{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);
   position:sticky;top:0;background:rgba(12,14,17,.92);backdrop-filter:blur(6px);z-index:20}
-.brand{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.brand{display:flex;align-items:center;gap:10px}
 .lights{display:flex;gap:4px}
 .led{width:9px;height:9px;border-radius:50%;background:#2a2f38}
 .led.on1{background:var(--s1);box-shadow:0 0 8px var(--s1)}
@@ -25,13 +31,12 @@ body{margin:0}
 .brand .t{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:.08em;text-transform:uppercase;line-height:1}
 .brand .t small{display:block;font-family:var(--mono);font-weight:400;font-size:8.5px;color:var(--dim);letter-spacing:.32em;margin-top:2px}
 .top .sp{flex:1}
-.chip{background:none;font-family:var(--mono);font-size:11px;letter-spacing:.14em;border:1px dashed var(--line2);
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.14em;border:1px dashed var(--line2);
   padding:5px 10px;color:var(--dim);cursor:pointer;user-select:none}
 .chip b{color:var(--ink)}
 .chip:hover{border-color:var(--s2);color:var(--ink)}
 .sync{font-family:var(--mono);font-size:9.5px;color:var(--dim);display:flex;align-items:center;gap:6px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
-.dot.off{background:var(--s2);box-shadow:0 0 6px var(--s2)}
 
 /* ===== layout ===== */
 .shell{display:grid;grid-template-columns:230px 1fr;max-width:1080px;margin:0 auto;min-height:calc(100vh - 54px)}
@@ -39,35 +44,20 @@ body{margin:0}
 .rail h4{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin:0 0 12px 2px}
 .main{padding:0 26px 120px;min-width:0}
 
-/* tú eres (rail) */
-.me{display:flex;align-items:center;gap:6px;margin:0 2px 14px}
-.me label{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
-.me input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:var(--mono);
-  font-size:11px;padding:5px 8px;flex:1;min-width:0;outline:none}
-.me input:focus{border-color:var(--s2)}
-
 /* ===== plates ===== */
 .plate{border:1px solid var(--line);background:var(--panel);padding:10px 12px 9px;margin-bottom:8px;cursor:pointer;
   clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
-  transition:border-color .15s, transform .1s;user-select:none}
+  transition:border-color .15s, transform .1s}
 .plate:hover{border-color:var(--line2)}
 .plate .row1{display:flex;align-items:center;justify-content:space-between}
 .plate .code{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:.1em;line-height:1}
 .plate .nm{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
-.plate.stage1.active{border-color:var(--s1);background:linear-gradient(180deg,#1d2027,var(--panel))}
-.plate.stage1.active .code{color:var(--s1)}
+.plate.active{border-color:var(--s3);background:linear-gradient(180deg,#241012,var(--panel))}
+.plate.active .code{color:var(--s3)}
 .plate.stage2.active{border-color:var(--s2);background:linear-gradient(180deg,#241c0c,var(--panel))}
 .plate.stage2.active .code{color:var(--s2)}
-.plate.stage3.active{border-color:var(--s3);background:linear-gradient(180deg,#241012,var(--panel))}
-.plate.stage3.active .code{color:var(--s3)}
 .plate.add{color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;padding:12px;border-style:dashed}
 .plate.add:hover{color:var(--ink)}
-
-/* form de nuevo build (rail) */
-.projform{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-.projform input,.sheet input,.editform input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
-  font-family:var(--body);font-size:14px;padding:10px;outline:none;min-width:0}
-.projform input:focus,.sheet input:focus,.editform input:focus{border-color:var(--s2)}
 
 /* ===== build header ===== */
 .build{position:relative;padding:30px 0 18px;overflow:hidden}
@@ -76,6 +66,7 @@ body{margin:0}
   pointer-events:none;user-select:none;line-height:1}
 .build h1{font-family:var(--display);font-weight:800;font-size:40px;line-height:.95;margin:0;
   text-transform:uppercase;letter-spacing:.02em;position:relative}
+.build .sub{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-top:6px;position:relative}
 
 /* stage gauge */
 .gauge{display:flex;align-items:center;gap:12px;margin:20px 0 4px;position:relative}
@@ -83,7 +74,7 @@ body{margin:0}
 .bar{flex:1;display:flex;gap:5px;height:12px}
 .seg{flex:1;background:var(--panel2);border:1px solid var(--line);position:relative;overflow:hidden;
   clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
-.seg i{position:absolute;inset:0;transform-origin:left;display:block;transition:transform .35s ease}
+.seg i{position:absolute;inset:0;transform-origin:left;display:block}
 .seg.f1 i{background:linear-gradient(90deg,#cfd3da,var(--s1))}
 .seg.f2 i{background:linear-gradient(90deg,#d98f16,var(--s2))}
 .seg.f3 i{background:linear-gradient(90deg,#c41f13,var(--s3));box-shadow:0 0 12px rgba(255,46,31,.5)}
@@ -94,32 +85,17 @@ body{margin:0}
   padding:12px 2px;margin:16px 0 22px;font-family:var(--mono);flex-wrap:wrap}
 .readout .r .l{font-size:8.5px;color:var(--dim);letter-spacing:.24em;text-transform:uppercase}
 .readout .r .v{font-size:22px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
-.readout .r .v.hot{color:var(--s3)} .readout .r .v.ok{color:var(--green)} .readout .r .v.trl{color:var(--troll)}
+.readout .r .v.hot{color:var(--s3)} .readout .r .v.ok{color:var(--green)}
 .readout .r .v small{font-size:11px;color:var(--dim)}
 
 /* ===== parts ===== */
 .sect{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;
   display:flex;align-items:center;gap:12px;margin:6px 0 10px}
 .sect::after{content:"";flex:1;border-top:1px solid var(--line)}
-.sect.trollhead{margin-top:26px}
-
-/* filtros + orden */
-.listbar{display:flex;gap:6px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
-.fchip{background:none;border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:9.5px;
-  text-transform:uppercase;letter-spacing:.08em;padding:5px 9px;cursor:pointer}
-.fchip:hover{color:var(--ink)}
-.fchip.on{border-color:var(--s2);color:var(--ink);background:rgba(245,165,36,.08)}
-.fchip .n{opacity:.6;margin-left:5px}
-.sort{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--dim);font-family:var(--mono);
-  font-size:10px;text-transform:uppercase;padding:4px 6px;outline:none;cursor:pointer}
-.sort:focus{border-color:var(--s2)}
-
 .part{display:grid;grid-template-columns:14px 1fr auto auto;gap:12px;align-items:center;
   padding:11px 4px;border-bottom:1px solid var(--line)}
 .part:hover{background:rgba(255,255,255,.015)}
-.part>div{min-width:0}
-.stledbtn{background:none;border:none;padding:10px;margin:-10px;cursor:pointer;display:grid;place-items:center;justify-self:center}
-.stled{width:9px;height:9px;border-radius:50%;display:block;justify-self:center}
+.stled{width:9px;height:9px;border-radius:50%;justify-self:center;cursor:pointer}
 .stled.pendiente{background:#2a2f38;border:1px solid var(--line2)}
 .stled.pedido{background:var(--s2);box-shadow:0 0 7px var(--s2)}
 .stled.recibido{background:var(--green);box-shadow:0 0 7px var(--green)}
@@ -134,19 +110,6 @@ body{margin:0}
 .ib{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 5px;color:var(--dim);filter:grayscale(1);opacity:.5;transition:.15s}
 .ib:hover{filter:none;opacity:1;color:var(--ink)}
 .ib.clown:hover{transform:rotate(-8deg) scale(1.2)}
-.ib.clown.on{filter:none;opacity:1}
-.ib.x:hover{color:var(--s3)}
-.ib.x.arm{filter:none;opacity:1;border:1px solid var(--s3);color:var(--s3);font-family:var(--mono);font-size:9.5px;
-  text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;white-space:nowrap}
-
-/* edición inline */
-.part.editing{display:block}
-.editform .frow{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
-.editform .frow:last-child{margin-bottom:0}
-.editform input{font-size:13px;padding:8px 9px}
-.ghost{background:none;border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:10px;
-  text-transform:uppercase;letter-spacing:.08em;padding:6px 10px;cursor:pointer}
-.ghost:hover{border-color:var(--s2);color:var(--ink)}
 
 /* troll zone */
 .trollhead{color:var(--troll)!important}
@@ -163,78 +126,156 @@ body{margin:0}
   padding:14px 22px;box-shadow:0 6px 24px rgba(255,46,31,.35);
   clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
 .fab:active{transform:translateY(1px)}
-.sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40}
+.sheetbg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;display:none}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--panel);border-top:2px solid var(--s3);
-  padding:18px 18px 26px;max-width:640px;margin:0 auto;animation:sheetIn .18s ease-out}
-@keyframes sheetIn{from{transform:translateY(14px);opacity:.5}to{transform:none;opacity:1}}
+  padding:18px 18px 26px;display:none;max-width:640px;margin:0 auto}
+.show .sheetbg,.show .sheet{display:block}
 .sheet h3{font-family:var(--display);font-weight:800;font-size:16px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 14px}
 .sheet .frow{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-.sheet .frow:last-child{margin-bottom:0}
+.sheet input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:var(--body);
+  font-size:14px;padding:10px;outline:none;min-width:0}
+.sheet input:focus{border-color:var(--s2)}
 .grow{flex:1 1 180px}.smf{flex:0 1 110px}.xsf{flex:0 1 70px}
 .btn{background:var(--s3);color:#fff;border:none;font-family:var(--display);font-weight:700;
   text-transform:uppercase;letter-spacing:.08em;font-size:13px;padding:11px 20px;cursor:pointer;
   clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
-.btn:active{transform:translateY(1px)}
-.btn:disabled{opacity:.4;cursor:default}
-.btn.small{font-size:11px;padding:8px 14px}
-
-/* stepper de unidades */
-.qtybox{display:flex;flex:0 0 auto}
-.qtybox button{background:var(--panel2);border:1px solid var(--line);color:var(--dim);cursor:pointer;
-  width:34px;font-family:var(--mono);font-size:15px;padding:0}
-.qtybox button:hover{color:var(--ink);border-color:var(--s2)}
-.qtybox button:first-child{border-right:none}
-.qtybox button:last-child{border-left:none}
-.qtybox input{width:48px;flex:0 0 48px;text-align:center}
-
-/* varios */
-.empty{border:1px dashed var(--line);padding:28px 16px;text-align:center;color:var(--dim);
-  font-family:var(--mono);font-size:12px;margin-top:14px}
-.danger{background:none;border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:10px;
-  text-transform:uppercase;letter-spacing:.1em;padding:6px 10px;cursor:pointer;margin-top:26px}
-.danger:hover,.danger.arm{border-color:var(--s3);color:var(--s3)}
-.dangerrow{display:inline-flex;gap:8px;margin-top:26px}
-.dangerrow .danger{margin-top:0}
-
-/* ===== landing ===== */
-.landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:14px;padding:20px;text-align:center}
-.landing .brand{cursor:default}
-.landing .brand.big .t{font-size:34px}
-.landing .brand.big .t small{font-size:10px;letter-spacing:.32em}
-.landing .brand.big .led{width:11px;height:11px}
-.or{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:10px}
-.joinrow{display:flex;gap:8px}
-.joinrow input{background:var(--panel);border:1px solid var(--line);color:var(--ink);font-family:var(--mono);
-  font-size:16px;letter-spacing:.2em;text-align:center;padding:10px;width:150px;outline:none;text-transform:uppercase}
-.joinrow input:focus{border-color:var(--s2)}
-.err{font-family:var(--mono);font-size:11px;color:var(--s3);margin-top:6px}
 
 /* ===== responsive ===== */
 @media (max-width:760px){
   .shell{display:block}
   .rail{border-right:none;border-bottom:1px solid var(--line);padding:12px 14px}
-  .railhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
-  .rail h4{margin:0}
-  .me{margin:0;flex:0 1 auto}
-  .me input{width:100px;flex:0 0 auto}
   .rail .plates{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
   .rail .plates::-webkit-scrollbar{display:none}
   .plate{flex:0 0 auto;margin-bottom:0;min-width:120px}
-  .projform{flex-direction:row;flex-wrap:wrap}
-  .projform input{flex:1 1 160px}
   .main{padding:0 16px 120px}
   .build h1{font-size:31px}
   .watermark{font-size:100px;top:-14px}
   .readout{gap:18px}
   .readout .r .v{font-size:18px}
 }
-@media (max-width:520px){
-  .top{gap:10px;padding:10px 12px}
-  .brand .t small{display:none}
-  .sync .txt{display:none}
-}
-@media (prefers-reduced-motion: reduce){
-  .sheet{animation:none}
-  .seg i{transition:none}
-}
+.note{max-width:1080px;margin:26px auto 60px;padding:0 18px;font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.7}
+.note b{color:var(--s2)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand">
+    <div class="lights"><span class="led on1"></span><span class="led on2"></span><span class="led on3"></span></div>
+    <div class="t">PitList<small>3 STAGE GARAGE</small></div>
+  </div>
+  <span class="sp"></span>
+  <span class="chip" title="click = copiar link">🔧 <b>K3M7XQ</b> · copiar</span>
+  <span class="sync"><span class="dot"></span>sync 21:14:02</span>
+</div>
+
+<div class="shell">
+  <aside class="rail">
+    <h4>Garaje · 2 builds</h4>
+    <div class="plates">
+      <div class="plate active">
+        <div class="row1"><span class="code">S13</span>
+          <span class="lights"><span class="led on1"></span><span class="led on2"></span><span class="led"></span></span></div>
+        <div class="nm">Nissan 200SX</div>
+      </div>
+      <div class="plate stage2">
+        <div class="row1"><span class="code">GSX</span>
+          <span class="lights"><span class="led on1"></span><span class="led"></span><span class="led"></span></span></div>
+        <div class="nm">Suzuki GSX</div>
+      </div>
+      <div class="plate add">+ nuevo build</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="build">
+      <div class="watermark">S13</div>
+      <h1>Nissan 200SX</h1>
+      <div class="sub">CA18DET · rebuild 300cv</div>
+      <div class="gauge">
+        <span class="stg">Stage 2</span>
+        <div class="bar">
+          <div class="seg f1"><i style="transform:scaleX(1)"></i></div>
+          <div class="seg f2"><i style="transform:scaleX(.62)"></i></div>
+          <div class="seg f3"><i style="transform:scaleX(0)"></i></div>
+        </div>
+        <span class="pct">54% recibido</span>
+      </div>
+      <div class="readout">
+        <div class="r"><div class="l">Piezas</div><div class="v">7<small>/13</small></div></div>
+        <div class="r"><div class="l">Por gastar</div><div class="v hot">1.712,40 €</div></div>
+        <div class="r"><div class="l">Gastado</div><div class="v ok">2.088,00 €</div></div>
+        <div class="r"><div class="l">Troleadas</div><div class="v" style="color:var(--troll)">2</div></div>
+      </div>
+    </div>
+
+    <div class="sect">Lista de piezas</div>
+
+    <div class="part">
+      <span class="stled pedido" title="pedido"></span>
+      <div><div class="nm"><a href="#">CP Pistons SC7345 8.5:1 83mm</a></div>
+        <div class="meta"><span>summitracing.com</span><span>por Alex</span><span>18/07</span></div></div>
+      <div><div class="price">850,00 €</div></div>
+      <div class="acts"><button class="ib clown">🤡</button><button class="ib">✕</button></div>
+    </div>
+    <div class="part">
+      <span class="stled pendiente" title="pendiente"></span>
+      <div><div class="nm"><a href="#">Cometic MLS C4480-051</a></div>
+        <div class="meta"><span>driftworks.com</span><span>por Alex</span><span>18/07</span></div></div>
+      <div><div class="price">168,90 €</div></div>
+      <div class="acts"><button class="ib clown">🤡</button><button class="ib">✕</button></div>
+    </div>
+    <div class="part">
+      <span class="stled pendiente" title="pendiente"></span>
+      <div><div class="nm"><a href="#">ARP head studs CA18</a></div>
+        <div class="meta"><span>driftworks.com</span><span>por Colega</span><span>19/07</span></div></div>
+      <div><div class="price">239,00 €</div></div>
+      <div class="acts"><button class="ib clown">🤡</button><button class="ib">✕</button></div>
+    </div>
+    <div class="part recibido">
+      <span class="stled recibido" title="recibido"></span>
+      <div><div class="nm">ACL Race bearings kit</div>
+        <div class="meta"><span>por Alex</span><span>12/07</span></div></div>
+      <div><div class="price">142,00 €</div><div class="qty">2 × 71,00 €</div></div>
+      <div class="acts"><button class="ib clown">🤡</button><button class="ib">✕</button></div>
+    </div>
+    <div class="part recibido">
+      <span class="stled recibido" title="recibido"></span>
+      <div><div class="nm">Kit juntas + distribución + bomba</div>
+        <div class="meta"><span>por Alex</span><span>10/07</span></div></div>
+      <div><div class="price">310,00 €</div></div>
+      <div class="acts"><button class="ib clown">🤡</button><button class="ib">✕</button></div>
+    </div>
+
+    <div class="sect trollhead" style="margin-top:26px">🤡 Zona de troleo</div>
+    <div class="part trolled">
+      <span class="stled pendiente"></span>
+      <div><div class="nm">Alerón GT wing 1.7m chino</div>
+        <div class="meta"><span>metida por Colega</span><span>cazada por Alex</span></div></div>
+      <div><div class="price">189,00 €</div></div>
+      <div class="acts"><button class="ib clown" style="filter:none;opacity:1">🤡</button><button class="ib">✕</button></div>
+      <div class="stamp">Troleada</div>
+    </div>
+
+  </main>
+</div>
+
+<button class="fab" onclick="document.body.classList.add('show')">+ Pieza</button>
+<div class="sheetbg" onclick="document.body.classList.remove('show')"></div>
+<div class="sheet">
+  <h3>Añadir pieza · S13</h3>
+  <div class="frow"><input class="grow" placeholder="Pieza (ej: Quaife ATB R200)" autofocus></div>
+  <div class="frow">
+    <input class="grow" placeholder="Link tienda (opcional)">
+    <input class="smf" placeholder="Precio €">
+    <input class="xsf" placeholder="Uds">
+    <button class="btn" onclick="document.body.classList.remove('show')">Añadir</button>
+  </div>
+</div>
+
+<div class="note">
+  <b>Notas del mockup</b> — Sistema "shift light": Stage 1/2/3 según % de piezas recibidas (0–33 / 33–66 / 66–100). Los 3 LEDs aparecen en el logo, en cada placa de build y en el estado de cada pieza (apagado=pendiente, ámbar=pedido, verde=recibido). El acento de la placa activa sube de color con el stage. Desktop: rail lateral de builds; móvil: se pliega a scroll horizontal (prueba a estrechar la ventana). El formulario ya no ocupa la página: botón "+ PIEZA" → hoja inferior. Datos falsos de ejemplo.
+</div>
+
+</body>
+</html>

@@ -5,6 +5,7 @@ import {
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
 const STATUSES = ["pendiente", "pedido", "recibido"];
+const nextStatus = (s) => STATUSES[(STATUSES.indexOf(s) + 1) % STATUSES.length];
 
 function domain(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
@@ -15,6 +16,26 @@ function eur(n) {
 function codeFromHash() {
   const m = window.location.hash.match(/g=([A-Z0-9]{4,10})/i);
   return m ? m[1].toUpperCase() : null;
+}
+
+// Stage según % de piezas recibidas: 0–33 → 1, 33–66 → 2, 66–100 → 3
+const stageOf = (pct) => (pct >= 200 / 3 ? 3 : pct >= 100 / 3 ? 2 : 1);
+
+function Leds({ lit }) {
+  return (
+    <span className="lights">
+      {[1, 2, 3].map((n) => <span key={n} className={"led" + (lit >= n ? " on" + n : "")} />)}
+    </span>
+  );
+}
+
+function Brand() {
+  return (
+    <>
+      <Leds lit={3} />
+      <div className="t">PitList<small>3 STAGE GARAGE</small></div>
+    </>
+  );
 }
 
 /* ---------- Landing: crear o entrar a un garaje ---------- */
@@ -51,18 +72,17 @@ function Landing({ onEnter, error }) {
   };
 
   return (
-    <div className="pl-landing">
-      <div className="pl-logo big">PIT<b>LIST</b></div>
-      <div className="pl-sub">Listas de piezas compartidas · 3 Stage Garage</div>
-      <button className="pl-btn" onClick={create} disabled={busy}>Crear garaje</button>
-      <div className="pl-or">— o entra con código —</div>
-      <div className="pl-joinrow">
+    <div className="landing">
+      <div className="brand big"><Brand /></div>
+      <button className="btn" onClick={create} disabled={busy}>Crear garaje</button>
+      <div className="or">— o entra con código —</div>
+      <div className="joinrow">
         <input value={join} placeholder="A1B2C3" maxLength={10}
           onChange={(e) => setJoin(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && enter()} />
-        <button className="pl-btn" onClick={enter} disabled={busy || !join.trim()}>Entrar</button>
+        <button className="btn" onClick={enter} disabled={busy || !join.trim()}>Entrar</button>
       </div>
-      {err && <div className="pl-err">{err}</div>}
+      {err && <div className="err">{err}</div>}
     </div>
   );
 }
@@ -85,12 +105,12 @@ function Garage({ code, onExit }) {
   const [sort, setSort] = useState("recientes");
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", url: "", price: "", qty: "1" });
-  const nameRef = useRef(null);
+  const [showSheet, setShowSheet] = useState(false);
   const activeRef = useRef(active);
   activeRef.current = active;
 
   useEffect(() => {
-    setConfirmDel(false); setConfirmPart(null); setEditing(null); setFilter("todas");
+    setConfirmDel(false); setConfirmPart(null); setEditing(null); setFilter("todas"); setShowSheet(false);
   }, [active]);
 
   // la confirmación de borrado de pieza caduca sola
@@ -99,6 +119,14 @@ function Garage({ code, onExit }) {
     const t = setTimeout(() => setConfirmPart(null), 3500);
     return () => clearTimeout(t);
   }, [confirmPart]);
+
+  // Esc cierra la hoja de añadir pieza
+  useEffect(() => {
+    if (!showSheet) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowSheet(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSheet]);
 
   const applyData = useCallback((d) => {
     if (!d) return;
@@ -184,7 +212,7 @@ function Garage({ code, onExit }) {
       return d;
     });
     setForm({ name: "", url: "", price: "", qty: "1" });
-    nameRef.current?.focus();
+    setShowSheet(false);
   };
 
   const bumpQty = (delta) =>
@@ -246,8 +274,15 @@ function Garage({ code, onExit }) {
   const trolled = allParts.filter((p) => p.trolled);
   const porGastar = parts.filter((p) => p.status !== "recibido").reduce((s, p) => s + p.price * p.qty, 0);
   const gastado = parts.filter((p) => p.status === "recibido").reduce((s, p) => s + p.price * p.qty, 0);
-  const total = porGastar + gastado;
-  const pct = total > 0 ? Math.round((gastado / total) * 100) : 0;
+  const recibidas = parts.filter((p) => p.status === "recibido").length;
+  const stagePct = parts.length ? Math.round((recibidas / parts.length) * 100) : 0;
+  const stage = stageOf(stagePct);
+  const segFill = (i) => Math.max(0, Math.min(1, (stagePct - i * (100 / 3)) / (100 / 3)));
+  const stageForProject = (pid) => {
+    const ps = (data.parts[pid] || []).filter((x) => !x.trolled);
+    if (!ps.length) return 1;
+    return stageOf((ps.filter((x) => x.status === "recibido").length / ps.length) * 100);
+  };
   const counts = { todas: parts.length };
   for (const s of STATUSES) counts[s] = parts.filter((p) => p.status === s).length;
   const shown = parts
@@ -258,176 +293,137 @@ function Garage({ code, onExit }) {
       : (b.ts || 0) - (a.ts || 0));
 
   return (
-    <div className="pl-wrap">
-      <div className="pl-header">
-        <div className="pl-logo" onClick={onExit} style={{ cursor: "pointer" }} title="Salir al inicio">
-          PIT<b>LIST</b>
-        </div>
-        <div className="pl-sync">
-          <span className={"pl-dot" + (synced && !saving ? "" : " off")} />
-          {saving ? "guardando…" : lastSync
-            ? "sync " + lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-            : "conectando…"}
-        </div>
+    <>
+      <div className="top">
+        <div className="brand" onClick={onExit} role="button" title="Salir al inicio"><Brand /></div>
+        <span className="sp" />
+        <button className="chip" onClick={copyLink} title="Copiar link de invitación">
+          🔧 <b>{code}</b> · {copied ? "¡copiado!" : "copiar"}
+        </button>
+        <span className="sync">
+          <span className={"dot" + (synced && !saving ? "" : " off")} />
+          <span className="txt">
+            {saving ? "guardando…" : lastSync
+              ? "sync " + lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+              : "conectando…"}
+          </span>
+        </span>
       </div>
 
-      <div className="pl-roomrow">
-        <span className="pl-roomcode" title="Código del garaje">🔧 {code}</span>
-        <button className="pl-mini" onClick={copyLink}>{copied ? "¡copiado!" : "copiar link"}</button>
-        <span className="pl-mespace" />
-        <label className="pl-melbl">Tú eres</label>
-        <input className="pl-meinput" value={me} placeholder="Alex / …" maxLength={16}
-          onChange={(e) => saveMe(e.target.value)} />
-      </div>
-
-      <div className="pl-tabs">
-        {data.projects.map((p) => (
-          <div key={p.id} className={"pl-plate" + (p.id === active ? " active" : "")}
-            onClick={() => setActive(p.id)} role="button" aria-label={"Proyecto " + p.name}>
-            <div className="code">{p.code}</div>
-            <div className="nm">{p.name}</div>
+      <div className="shell">
+        <aside className="rail">
+          <div className="railhead">
+            <h4>Garaje · {data.projects.length} {data.projects.length === 1 ? "build" : "builds"}</h4>
+            <div className="me">
+              <label htmlFor="me-input">Tú eres</label>
+              <input id="me-input" value={me} placeholder="Alex / …" maxLength={16}
+                onChange={(e) => saveMe(e.target.value)} />
+            </div>
           </div>
-        ))}
-        <div className="pl-plate add" onClick={() => setShowNewProj(!showNewProj)} role="button"
-          aria-label="Nuevo proyecto">{showNewProj ? "cancelar" : "+ proyecto"}</div>
-      </div>
-
-      {showNewProj && (
-        <div className="pl-form" style={{ marginTop: 4 }}>
-          <div className="row">
-            <input className="grow" autoFocus placeholder="Nombre (ej: Nissan 200SX)" value={projForm.name}
-              onChange={(e) => setProjForm({ ...projForm, name: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && addProject()} />
-            <input className="sm" placeholder="Código (S13)" maxLength={6} value={projForm.code}
-              onChange={(e) => setProjForm({ ...projForm, code: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && addProject()} />
-            <button className="pl-btn" onClick={addProject} disabled={!projForm.name.trim()}>Crear</button>
+          <div className="plates">
+            {data.projects.map((p) => {
+              const st = stageForProject(p.id);
+              return (
+                <div key={p.id} className={"plate stage" + st + (p.id === active ? " active" : "")}
+                  onClick={() => setActive(p.id)} role="button" aria-label={"Build " + p.name}>
+                  <div className="row1">
+                    <span className="code">{p.code}</span>
+                    <Leds lit={st} />
+                  </div>
+                  <div className="nm">{p.name}</div>
+                </div>
+              );
+            })}
+            <div className="plate add" onClick={() => setShowNewProj(!showNewProj)} role="button"
+              aria-label="Nuevo build">{showNewProj ? "cancelar" : "+ nuevo build"}</div>
           </div>
-        </div>
-      )}
-
-      {proj ? (
-        <>
-          <div className="pl-totals">
-            <div><div className="lbl">Piezas</div><div className="val">{parts.length}</div></div>
-            <div><div className="lbl">Por gastar</div><div className="val red">{eur(porGastar)}</div></div>
-            <div><div className="lbl">Gastado</div><div className="val grn">{eur(gastado)}</div></div>
-          </div>
-
-          {total > 0 && (
-            <div className="pl-progressrow" title={pct + "% del presupuesto ya gastado"}>
-              <div className="pl-progress"><i style={{ width: pct + "%" }} /></div>
-              <span className="pl-pct">{pct}% comprado</span>
+          {showNewProj && (
+            <div className="projform">
+              <input autoFocus placeholder="Nombre (ej: Nissan 200SX)" value={projForm.name}
+                onChange={(e) => setProjForm({ ...projForm, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addProject()} />
+              <input placeholder="Código (S13)" maxLength={6} value={projForm.code}
+                onChange={(e) => setProjForm({ ...projForm, code: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addProject()} />
+              <button className="btn small" onClick={addProject} disabled={!projForm.name.trim()}>Crear</button>
             </div>
           )}
+        </aside>
 
-          <div className="pl-form">
-            <div className="row">
-              <input className="grow" ref={nameRef} placeholder="Pieza (ej: CP Pistons SC7345)" value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && addPart()} />
-            </div>
-            <div className="row">
-              <input className="grow" placeholder="Link tienda (opcional)" value={form.url}
-                onChange={(e) => setForm({ ...form, url: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && addPart()} />
-              <input className="sm" placeholder="Precio €" inputMode="decimal" value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && addPart()} />
-              <div className="pl-qtybox">
-                <button type="button" aria-label="Menos unidades" onClick={() => bumpQty(-1)}>−</button>
-                <input placeholder="Uds" inputMode="numeric" value={form.qty}
-                  onChange={(e) => setForm({ ...form, qty: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && addPart()} />
-                <button type="button" aria-label="Más unidades" onClick={() => bumpQty(1)}>+</button>
-              </div>
-              <button className="pl-btn" onClick={addPart} disabled={!form.name.trim()}>Añadir</button>
-            </div>
-          </div>
-
-          {allParts.length === 0 && <div className="pl-empty">Sin piezas todavía. Añade la primera arriba.</div>}
-
-          {parts.length > 0 && (
-            <div className="pl-listbar">
-              {["todas", ...STATUSES].map((f) => (
-                <button key={f} className={"pl-chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
-                  {f}<span className="n">{counts[f]}</span>
-                </button>
-              ))}
-              <select className="pl-sort" value={sort} onChange={(e) => setSort(e.target.value)}
-                aria-label="Ordenar piezas">
-                <option value="recientes">recientes</option>
-                <option value="precio">precio ↓</option>
-                <option value="estado">estado</option>
-              </select>
-            </div>
-          )}
-
-          {parts.length > 0 && shown.length === 0 && <div className="pl-empty">Nada con este filtro.</div>}
-
-          {shown.map((p) => editing === p.id ? (
-            <div key={p.id} className="pl-part editing">
-              <div className="pl-edit">
-                <div className="row">
-                  <input className="grow" autoFocus placeholder="Pieza" value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} onKeyDown={onEditKey} />
-                </div>
-                <div className="row">
-                  <input className="grow" placeholder="Link tienda (opcional)" value={editForm.url}
-                    onChange={(e) => setEditForm({ ...editForm, url: e.target.value })} onKeyDown={onEditKey} />
-                  <input className="sm" placeholder="Precio €" inputMode="decimal" value={editForm.price}
-                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} onKeyDown={onEditKey} />
-                  <input className="xs" placeholder="Uds" inputMode="numeric" value={editForm.qty}
-                    onChange={(e) => setEditForm({ ...editForm, qty: e.target.value })} onKeyDown={onEditKey} />
-                </div>
-                <div className="row">
-                  <button className="pl-btn small" onClick={saveEdit} disabled={!editForm.name.trim()}>Guardar</button>
-                  <button className="pl-mini" onClick={() => setEditing(null)}>Cancelar</button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div key={p.id} className={"pl-part " + p.status}>
-              <div className="info">
-                <div className="nm">
-                  {p.url
-                    ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc">{p.name}</a>
-                    : p.name}
-                </div>
-                <div className="meta">
-                  {p.url && domain(p.url) && <span>{domain(p.url)}</span>}
-                  <span>por {p.by}</span>
-                  <span>{new Date(p.ts).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}</span>
-                </div>
-                <div className="pl-seg" role="group" aria-label="Estado de la pieza">
-                  {STATUSES.map((s) => (
-                    <button key={s} className={"seg " + s + (p.status === s ? " on" : "")}
-                      onClick={() => p.status !== s && setStatus(active, p.id, s)}>{s}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="side">
-                <div className="price">{eur(p.price * p.qty)}</div>
-                {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
-              </div>
-              <div className="acts">
-                <button className="pl-ico" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
-                <button className="pl-troll" onClick={() => toggleTroll(active, p.id)}
-                  aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
-                <button className={"pl-x" + (confirmPart === p.id ? " arm" : "")}
-                  onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
-                  {confirmPart === p.id ? "¿seguro?" : "✕"}
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {trolled.length > 0 && (
+        <main className="main">
+          {proj ? (
             <>
-              <div className="pl-trollhead">🤡 Zona de troleo · {trolled.length}</div>
-              {trolled.map((p) => (
-                <div key={p.id} className="pl-part trolled">
-                  <div className="pl-stamp">TROLEADA</div>
+              <div className="build">
+                <div className="watermark">{proj.code}</div>
+                <h1>{proj.name}</h1>
+                <div className="gauge">
+                  <span className="stg" style={{ color: `var(--s${stage})` }}>Stage {stage}</span>
+                  <div className="bar">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className={"seg f" + (i + 1)}>
+                        <i style={{ transform: `scaleX(${segFill(i)})` }} />
+                      </div>
+                    ))}
+                  </div>
+                  <span className="pct">{stagePct}% recibido</span>
+                </div>
+                <div className="readout">
+                  <div className="r"><div className="l">Piezas</div><div className="v">{recibidas}<small>/{parts.length}</small></div></div>
+                  <div className="r"><div className="l">Por gastar</div><div className="v hot">{eur(porGastar)}</div></div>
+                  <div className="r"><div className="l">Gastado</div><div className="v ok">{eur(gastado)}</div></div>
+                  <div className="r"><div className="l">Troleadas</div><div className="v trl">{trolled.length}</div></div>
+                </div>
+              </div>
+
+              <div className="sect">Lista de piezas</div>
+
+              {parts.length > 0 && (
+                <div className="listbar">
+                  {["todas", ...STATUSES].map((f) => (
+                    <button key={f} className={"fchip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
+                      {f}<span className="n">{counts[f]}</span>
+                    </button>
+                  ))}
+                  <select className="sort" value={sort} onChange={(e) => setSort(e.target.value)}
+                    aria-label="Ordenar piezas">
+                    <option value="recientes">recientes</option>
+                    <option value="precio">precio ↓</option>
+                    <option value="estado">estado</option>
+                  </select>
+                </div>
+              )}
+
+              {allParts.length === 0 && <div className="empty">Sin piezas todavía. Dale a “+ Pieza”.</div>}
+              {parts.length > 0 && shown.length === 0 && <div className="empty">Nada con este filtro.</div>}
+
+              {shown.map((p) => editing === p.id ? (
+                <div key={p.id} className="part editing">
+                  <div className="editform">
+                    <div className="frow">
+                      <input className="grow" autoFocus placeholder="Pieza" value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} onKeyDown={onEditKey} />
+                    </div>
+                    <div className="frow">
+                      <input className="grow" placeholder="Link tienda (opcional)" value={editForm.url}
+                        onChange={(e) => setEditForm({ ...editForm, url: e.target.value })} onKeyDown={onEditKey} />
+                      <input className="smf" placeholder="Precio €" inputMode="decimal" value={editForm.price}
+                        onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} onKeyDown={onEditKey} />
+                      <input className="xsf" placeholder="Uds" inputMode="numeric" value={editForm.qty}
+                        onChange={(e) => setEditForm({ ...editForm, qty: e.target.value })} onKeyDown={onEditKey} />
+                    </div>
+                    <div className="frow">
+                      <button className="btn small" onClick={saveEdit} disabled={!editForm.name.trim()}>Guardar</button>
+                      <button className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div key={p.id} className={"part " + p.status}>
+                  <button className="stledbtn" onClick={() => setStatus(active, p.id, nextStatus(p.status))}
+                    title={"Estado: " + p.status + " · click → " + nextStatus(p.status)}
+                    aria-label={"Estado: " + p.status + ". Cambiar a " + nextStatus(p.status)}>
+                    <span className={"stled " + p.status} />
+                  </button>
                   <div className="info">
                     <div className="nm">
                       {p.url
@@ -435,39 +431,107 @@ function Garage({ code, onExit }) {
                         : p.name}
                     </div>
                     <div className="meta">
-                      <span>metida por {p.by}</span>
-                      <span>cazada por {p.trolledBy || "?"}</span>
+                      {p.url && domain(p.url) && <span>{domain(p.url)}</span>}
+                      <span>por {p.by}</span>
+                      <span>{new Date(p.ts).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}</span>
                     </div>
                   </div>
-                  <div className="side"><div className="price">{eur(p.price * p.qty)}</div></div>
+                  <div className="money">
+                    <div className="price">{eur(p.price * p.qty)}</div>
+                    {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
+                  </div>
                   <div className="acts">
-                    <button className="pl-troll on" onClick={() => toggleTroll(active, p.id)}
-                      aria-label="Perdonar y devolver a la lista" title="Perdonar">🤡</button>
-                    <button className={"pl-x" + (confirmPart === p.id ? " arm" : "")}
+                    <button className="ib" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
+                    <button className="ib clown" onClick={() => toggleTroll(active, p.id)}
+                      aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
+                    <button className={"ib x" + (confirmPart === p.id ? " arm" : "")}
                       onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
                       {confirmPart === p.id ? "¿seguro?" : "✕"}
                     </button>
                   </div>
                 </div>
               ))}
-            </>
-          )}
 
-          {confirmDel ? (
-            <span style={{ display: "inline-flex", gap: 8, marginTop: 18 }}>
-              <button className="pl-danger" style={{ marginTop: 0, borderColor: "var(--accent)", color: "var(--accent)" }}
-                onClick={() => delProject(active)}>Sí, borrar todo</button>
-              <button className="pl-danger" style={{ marginTop: 0 }}
-                onClick={() => setConfirmDel(false)}>Cancelar</button>
-            </span>
+              {trolled.length > 0 && (
+                <>
+                  <div className="sect trollhead">🤡 Zona de troleo · {trolled.length}</div>
+                  {trolled.map((p) => (
+                    <div key={p.id} className="part trolled">
+                      <span className="stled pendiente" />
+                      <div className="info">
+                        <div className="nm">
+                          {p.url
+                            ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc">{p.name}</a>
+                            : p.name}
+                        </div>
+                        <div className="meta">
+                          <span>metida por {p.by}</span>
+                          <span>cazada por {p.trolledBy || "?"}</span>
+                        </div>
+                      </div>
+                      <div className="money"><div className="price">{eur(p.price * p.qty)}</div></div>
+                      <div className="acts">
+                        <button className="ib clown on" onClick={() => toggleTroll(active, p.id)}
+                          aria-label="Perdonar y devolver a la lista" title="Perdonar">🤡</button>
+                        <button className={"ib x" + (confirmPart === p.id ? " arm" : "")}
+                          onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
+                          {confirmPart === p.id ? "¿seguro?" : "✕"}
+                        </button>
+                      </div>
+                      <div className="stamp">Troleada</div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {confirmDel ? (
+                <span className="dangerrow">
+                  <button className="danger arm" onClick={() => delProject(active)}>Sí, borrar todo</button>
+                  <button className="danger" onClick={() => setConfirmDel(false)}>Cancelar</button>
+                </span>
+              ) : (
+                <button className="danger" onClick={() => setConfirmDel(true)}>Borrar build</button>
+              )}
+            </>
           ) : (
-            <button className="pl-danger" onClick={() => setConfirmDel(true)}>Borrar proyecto</button>
+            <div className="empty">Crea el primer build con “+ nuevo build” — S13, GSX, lo que toque.</div>
           )}
-        </>
-      ) : (
-        <div className="pl-empty">Crea el primer proyecto con “+ proyecto” — S13, GSX, lo que toque.</div>
+        </main>
+      </div>
+
+      {proj && !showSheet && (
+        <button className="fab" onClick={() => setShowSheet(true)}>+ Pieza</button>
       )}
-    </div>
+      {proj && showSheet && (
+        <>
+          <div className="sheetbg" onClick={() => setShowSheet(false)} />
+          <div className="sheet" role="dialog" aria-label="Añadir pieza">
+            <h3>Añadir pieza · {proj.code}</h3>
+            <div className="frow">
+              <input className="grow" autoFocus placeholder="Pieza (ej: CP Pistons SC7345)" value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addPart()} />
+            </div>
+            <div className="frow">
+              <input className="grow" placeholder="Link tienda (opcional)" value={form.url}
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addPart()} />
+              <input className="smf" placeholder="Precio €" inputMode="decimal" value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && addPart()} />
+              <div className="qtybox">
+                <button type="button" aria-label="Menos unidades" onClick={() => bumpQty(-1)}>−</button>
+                <input placeholder="Uds" inputMode="numeric" value={form.qty}
+                  onChange={(e) => setForm({ ...form, qty: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && addPart()} />
+                <button type="button" aria-label="Más unidades" onClick={() => bumpQty(1)}>+</button>
+              </div>
+              <button className="btn" onClick={addPart} disabled={!form.name.trim()}>Añadir</button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -493,7 +557,7 @@ export default function App() {
   };
 
   return (
-    <div className="pl-root">
+    <div className="root">
       {code ? <Garage code={code} onExit={exit} /> : <Landing onEnter={enter} />}
     </div>
   );
