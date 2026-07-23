@@ -59,7 +59,12 @@ export function useMessages(code, me) {
     // `me` fuera de las dependencias a propósito: renombrarse no debe reabrir el canal.
   }, [code, load, upsert, drop]);
 
-  useEffect(() => { liveRef.current?.setName(me); }, [me]);
+  // El input del rail escribe en cada tecla y cada re-anuncio deja una entrada más
+  // en la presencia de todos: se espera a que pares de escribir.
+  useEffect(() => {
+    const t = setTimeout(() => liveRef.current?.setName(me), 400);
+    return () => clearTimeout(t);
+  }, [me]);
 
   // Enviar y reintentar comparten camino: el id ya está puesto, así que repetir es inofensivo.
   const push = useCallback(async (row) => {

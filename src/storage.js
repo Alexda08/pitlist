@@ -97,9 +97,11 @@ export async function deleteMessagesForProject(projectId) {
   if (error) throw error;
 }
 
+// Re-anunciarse AÑADE una entrada a la lista del cliente en vez de reemplazarla,
+// así que el nombre bueno es el último, no el primero.
 const peopleIn = (ch) =>
   Object.entries(ch.presenceState())
-    .map(([cid, metas]) => ({ clientId: cid, name: metas[0]?.name || "" }));
+    .map(([cid, metas]) => ({ clientId: cid, name: metas[metas.length - 1]?.name || "" }));
 
 // Un canal por garaje: INSERT + DELETE de mensajes y presencia de quien está dentro.
 export function subscribeMessages(code, { onInsert, onDelete, onPresence, name }) {
@@ -115,7 +117,11 @@ export function subscribeMessages(code, { onInsert, onDelete, onPresence, name }
     .on("postgres_changes",
       { event: "DELETE", schema: "public", table: "garage_messages" },
       (p) => onDelete?.(p.old.id))
+    // sync no basta: cuando alguien YA presente se renombra, Supabase emite join,
+    // y quien estuviera mirando se quedaría con el nombre viejo (o con "anónimo").
     .on("presence", { event: "sync" }, () => onPresence?.(peopleIn(ch)))
+    .on("presence", { event: "join" }, () => onPresence?.(peopleIn(ch)))
+    .on("presence", { event: "leave" }, () => onPresence?.(peopleIn(ch)))
     .subscribe((status) => { if (status === "SUBSCRIBED") ch.track({ name }); });
 
   return {
