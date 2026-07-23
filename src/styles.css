@@ -210,6 +210,34 @@ body{margin:0}
 .joinrow input:focus{border-color:var(--s2)}
 .err{font-family:var(--mono);font-size:11px;color:var(--s3);margin-top:6px}
 
+/* ===== mensajes: hilos de comentarios (y luego chat de sala) ===== */
+.ib.chat .n{font-family:var(--mono);font-size:9px;margin-left:3px;opacity:.8}
+.ib.chat.on{filter:none;opacity:1;color:var(--s2)}
+
+.thread{border-left:2px solid var(--line2);margin:0 0 12px 26px;padding:10px 0 4px 12px}
+
+.msgs{display:flex;flex-direction:column;gap:9px;margin-bottom:10px}
+.msg{position:relative;padding-right:26px}
+.msg .who{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;
+  letter-spacing:.1em;display:flex;gap:8px;align-items:baseline}
+.msg .who b{color:var(--ink);font-weight:600}
+.msg.mine .who b{color:var(--s2)}
+.msg .txt{font-size:14px;margin-top:2px;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg .txt a{color:var(--s2);text-decoration:none;border-bottom:1px dotted var(--s2)}
+.msg.pending{opacity:.5}
+.msg.failed .txt{color:var(--s3)}
+.msg .ib.x{position:absolute;right:0;top:0;opacity:0}
+.msg:hover .ib.x{opacity:.5}
+.msg .ib.x.arm{opacity:1}
+@media (hover:none){.msg .ib.x{opacity:.35}}   /* sin hover en táctil: siempre visible */
+.msgempty{font-family:var(--mono);font-size:11px;color:var(--dim);padding:4px 0 10px}
+
+.composer{display:flex;gap:6px}
+.composer input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  font-family:var(--body);font-size:14px;padding:9px 10px;outline:none}
+.composer input:focus{border-color:var(--s2)}
+.ghost.tiny{font-size:9px;padding:3px 7px;margin-top:5px}
+
 /* ===== responsive ===== */
 @media (max-width:760px){
   .shell{display:block}
