@@ -51,6 +51,7 @@ Dos tablas, y la separación importa: `garages` (el blob del garaje) y `garage_m
       "by": "Alex", "ts": 1753...,
       "trolled": true, "trolledBy": "Colega",  // opcionales
       "next": true, "nextTs": 1753...          // opcionales: cola "siguiente compra"
+                                               // (nextTs solo ordena; reordenar la cola lo renumera 1..n)
     }]
   },
   "updatedAt": 1753...
@@ -103,7 +104,8 @@ Append-only, con `kind` = `'chat'` | `'comment'` (los comentarios llevan `part_i
 - ✅ **Chat en vivo de la sala** (dock en escritorio, hoja en móvil), con no leídos, envío optimista con reintento seguro, borrado con doble confirmación y enlaces auto-detectados. Sin edición: los mensajes son inmutables.
 - ✅ **Presencia**: quién está en el garaje ahora mismo, en la barra superior y en la cabecera del chat.
 - ✅ **Comentarios por pieza** en hilo desplegable, con contador en la fila. Borrar una pieza o un build borra sus comentarios. La fila muestra un **preview del último comentario** (clicable, abre el hilo) y el 💬 se pinta en ámbar cuando hay conversación.
-- ✅ **Cola "siguiente compra"**: botón 🎯 por pieza (flag `next`/`nextTs` en el blob, mismo patrón que `trolled`), sección propia encima de la lista con subtotal de la tanda, orden por marcado. Al pasar a "pedido" o "recibido" la pieza sale sola de la cola. La fila de pieza es una función compartida (`partRow` en App.jsx) entre cola y lista.
+- ✅ **Cola "siguiente compra"**: botón 🎯 por pieza (flag `next`/`nextTs` en el blob, mismo patrón que `trolled`), sección propia encima de la lista con subtotal de la tanda y posición numerada. Al pasar a "pedido" o "recibido" la pieza sale sola de la cola. La fila de pieza es una función compartida (`partRow` en App.jsx) entre cola y lista.
+- ✅ **Drag & drop para reordenar** (handle ⋮⋮): con pointer events propios, NO con el DnD nativo de HTML5 (no funciona en táctil). El orden manual ES el orden del array del blob; el orden por defecto del selector ahora es "manual". El drag en la lista solo se activa con orden "manual" + filtro "todas" (reordenar una lista filtrada/ordenada no está bien definido); en la cola 🎯 siempre. Mover va por ids, no por índices, y en la cola renumera `nextTs` 1..n.
 - ✅ Deploy funcionando de punta a punta.
 
 Pendiente menor: los comentarios están solo en la lista normal de piezas, **no en la zona de troleo** — se puede añadir con una línea si os apetece cebaros ahí.
