@@ -241,7 +241,11 @@ function Garage({ code, onExit }) {
   const setStatus = (pid, partId, status) =>
     mutate((d) => {
       const p = (d.parts[pid] || []).find((x) => x.id === partId);
-      if (p && !p.trolled) p.status = status;
+      if (p && !p.trolled) {
+        p.status = status;
+        // pedida o recibida ya no es "siguiente en comprar": sale sola de la cola
+        if (status !== "pendiente") { delete p.next; delete p.nextTs; }
+      }
       return d;
     });
 
@@ -285,6 +289,15 @@ function Garage({ code, onExit }) {
       return d;
     });
 
+  const toggleNext = (pid, partId) =>
+    mutate((d) => {
+      const p = (d.parts[pid] || []).find((x) => x.id === partId);
+      if (!p || p.trolled) return d;
+      if (p.next) { delete p.next; delete p.nextTs; }
+      else { p.next = true; p.nextTs = Date.now(); }
+      return d;
+    });
+
   const delPart = (pid, partId) => {
     deleteMessagesForPart(partId).catch((e) => console.error("comentarios de la pieza", e));
     return mutate((d) => { d.parts[pid] = (d.parts[pid] || []).filter((x) => x.id !== partId); return d; });
@@ -305,14 +318,107 @@ function Garage({ code, onExit }) {
     if (!ps.length) return 1;
     return stageOf((ps.filter((x) => x.status === "recibido").length / ps.length) * 100);
   };
-  const counts = { todas: parts.length };
-  for (const s of STATUSES) counts[s] = parts.filter((p) => p.status === s).length;
-  const shown = parts
+  // la cola de "siguiente compra" vive aparte de la lista normal, por orden de marcado
+  const queue = parts.filter((p) => p.next).sort((a, b) => (a.nextTs || 0) - (b.nextTs || 0));
+  const nextTotal = queue.reduce((s, p) => s + p.price * p.qty, 0);
+  const listed = parts.filter((p) => !p.next);
+  const counts = { todas: listed.length };
+  for (const s of STATUSES) counts[s] = listed.filter((p) => p.status === s).length;
+  const shown = listed
     .filter((p) => filter === "todas" || p.status === filter)
     .sort((a, b) =>
       sort === "precio" ? b.price * b.qty - a.price * a.qty
       : sort === "estado" ? (STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status)) || ((b.ts || 0) - (a.ts || 0))
       : (b.ts || 0) - (a.ts || 0));
+
+  // Fila de pieza, compartida por la cola de "siguiente compra" y la lista normal.
+  const partRow = (p) => {
+    if (editing === p.id) return (
+      <div key={p.id} className="part editing">
+        <div className="editform">
+          <div className="frow">
+            <input className="grow" autoFocus placeholder="Pieza" value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} onKeyDown={onEditKey} />
+          </div>
+          <div className="frow">
+            <input className="grow" placeholder="Link tienda (opcional)" value={editForm.url}
+              onChange={(e) => setEditForm({ ...editForm, url: e.target.value })} onKeyDown={onEditKey} />
+            <input className="smf" placeholder="Precio €" inputMode="decimal" value={editForm.price}
+              onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} onKeyDown={onEditKey} />
+            <input className="xsf" placeholder="Uds" inputMode="numeric" value={editForm.qty}
+              onChange={(e) => setEditForm({ ...editForm, qty: e.target.value })} onKeyDown={onEditKey} />
+          </div>
+          <div className="frow">
+            <button className="btn small" onClick={saveEdit} disabled={!editForm.name.trim()}>Guardar</button>
+            <button className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    );
+    const cs = M.comments[p.id] || [];
+    const last = cs[cs.length - 1];
+    return (
+      <Fragment key={p.id}>
+      <div className={"part " + p.status + (p.next ? " queued" : "")}>
+        <button className="stledbtn" onClick={() => setStatus(active, p.id, nextStatus(p.status))}
+          title={"Estado: " + p.status + " · click → " + nextStatus(p.status)}
+          aria-label={"Estado: " + p.status + ". Cambiar a " + nextStatus(p.status)}>
+          <span className={"stled " + p.status} />
+        </button>
+        <div className="info">
+          <div className="nm">
+            {p.url
+              ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc">{p.name}</a>
+              : p.name}
+          </div>
+          <div className="meta">
+            {p.url && domain(p.url) && <span>{domain(p.url)}</span>}
+            <span>por {p.by}</span>
+            <span>{new Date(p.ts).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}</span>
+          </div>
+          {last && thread !== p.id && (
+            <button className="cpreview" onClick={() => setThread(p.id)}
+              title="Abrir comentarios">
+              💬 <b>{last.author}</b> {last.body}
+            </button>
+          )}
+        </div>
+        <div className="money">
+          <div className="price">{eur(p.price * p.qty)}</div>
+          {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
+        </div>
+        <div className="acts">
+          <button className={"ib chat" + (thread === p.id ? " on" : "") + (cs.length ? " has" : "")}
+            onClick={() => setThread(thread === p.id ? null : p.id)}
+            aria-label={`Comentarios de ${p.name} (${cs.length})`}
+            title="Comentarios">
+            💬{cs.length > 0 && <span className="n">{cs.length}</span>}
+          </button>
+          <button className={"ib next" + (p.next ? " on" : "")} onClick={() => toggleNext(active, p.id)}
+            aria-label={p.next ? "Quitar de siguiente compra" : "Marcar como siguiente compra"}
+            title="Siguiente compra">🎯</button>
+          <button className="ib" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
+          <button className="ib clown" onClick={() => toggleTroll(active, p.id)}
+            aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
+          <button className={"ib x" + (confirmPart === p.id ? " arm" : "")}
+            onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
+            {confirmPart === p.id ? "¿seguro?" : "✕"}
+          </button>
+        </div>
+      </div>
+      {thread === p.id && (
+        <div className="thread">
+          <MessageList items={M.comments[p.id] || []} cid={M.cid}
+            onDelete={M.remove} onResend={M.resend}
+            empty="Sin comentarios todavía." />
+          <Composer me={me} onName={saveMe} autoFocus
+            placeholder="Comentar esta pieza…"
+            onSend={(t) => M.send(t, { partId: p.id, projectId: active })} />
+        </div>
+      )}
+      </Fragment>
+    );
+  };
 
   return (
     <>
@@ -402,9 +508,18 @@ function Garage({ code, onExit }) {
                 </div>
               </div>
 
-              <div className="sect">Lista de piezas</div>
+              {queue.length > 0 && (
+                <>
+                  <div className="sect nexthead">
+                    🎯 Siguiente compra · {queue.length} <span className="sum">{eur(nextTotal)}</span>
+                  </div>
+                  {queue.map(partRow)}
+                </>
+              )}
 
-              {parts.length > 0 && (
+              <div className={"sect" + (queue.length ? " listhead" : "")}>Lista de piezas</div>
+
+              {listed.length > 0 && (
                 <div className="listbar">
                   {["todas", ...STATUSES].map((f) => (
                     <button key={f} className={"fchip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
@@ -421,81 +536,9 @@ function Garage({ code, onExit }) {
               )}
 
               {allParts.length === 0 && <div className="empty">Sin piezas todavía. Dale a “+ Pieza”.</div>}
-              {parts.length > 0 && shown.length === 0 && <div className="empty">Nada con este filtro.</div>}
+              {listed.length > 0 && shown.length === 0 && <div className="empty">Nada con este filtro.</div>}
 
-              {shown.map((p) => editing === p.id ? (
-                <div key={p.id} className="part editing">
-                  <div className="editform">
-                    <div className="frow">
-                      <input className="grow" autoFocus placeholder="Pieza" value={editForm.name}
-                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} onKeyDown={onEditKey} />
-                    </div>
-                    <div className="frow">
-                      <input className="grow" placeholder="Link tienda (opcional)" value={editForm.url}
-                        onChange={(e) => setEditForm({ ...editForm, url: e.target.value })} onKeyDown={onEditKey} />
-                      <input className="smf" placeholder="Precio €" inputMode="decimal" value={editForm.price}
-                        onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} onKeyDown={onEditKey} />
-                      <input className="xsf" placeholder="Uds" inputMode="numeric" value={editForm.qty}
-                        onChange={(e) => setEditForm({ ...editForm, qty: e.target.value })} onKeyDown={onEditKey} />
-                    </div>
-                    <div className="frow">
-                      <button className="btn small" onClick={saveEdit} disabled={!editForm.name.trim()}>Guardar</button>
-                      <button className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <Fragment key={p.id}>
-                <div className={"part " + p.status}>
-                  <button className="stledbtn" onClick={() => setStatus(active, p.id, nextStatus(p.status))}
-                    title={"Estado: " + p.status + " · click → " + nextStatus(p.status)}
-                    aria-label={"Estado: " + p.status + ". Cambiar a " + nextStatus(p.status)}>
-                    <span className={"stled " + p.status} />
-                  </button>
-                  <div className="info">
-                    <div className="nm">
-                      {p.url
-                        ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc">{p.name}</a>
-                        : p.name}
-                    </div>
-                    <div className="meta">
-                      {p.url && domain(p.url) && <span>{domain(p.url)}</span>}
-                      <span>por {p.by}</span>
-                      <span>{new Date(p.ts).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}</span>
-                    </div>
-                  </div>
-                  <div className="money">
-                    <div className="price">{eur(p.price * p.qty)}</div>
-                    {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
-                  </div>
-                  <div className="acts">
-                    <button className={"ib chat" + (thread === p.id ? " on" : "")}
-                      onClick={() => setThread(thread === p.id ? null : p.id)}
-                      aria-label={`Comentarios de ${p.name} (${M.comments[p.id]?.length || 0})`}
-                      title="Comentarios">
-                      💬{(M.comments[p.id]?.length || 0) > 0 && <span className="n">{M.comments[p.id].length}</span>}
-                    </button>
-                    <button className="ib" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
-                    <button className="ib clown" onClick={() => toggleTroll(active, p.id)}
-                      aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
-                    <button className={"ib x" + (confirmPart === p.id ? " arm" : "")}
-                      onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
-                      {confirmPart === p.id ? "¿seguro?" : "✕"}
-                    </button>
-                  </div>
-                </div>
-                {thread === p.id && (
-                  <div className="thread">
-                    <MessageList items={M.comments[p.id] || []} cid={M.cid}
-                      onDelete={M.remove} onResend={M.resend}
-                      empty="Sin comentarios todavía." />
-                    <Composer me={me} onName={saveMe} autoFocus
-                      placeholder="Comentar esta pieza…"
-                      onSend={(t) => M.send(t, { partId: p.id, projectId: active })} />
-                  </div>
-                )}
-                </Fragment>
-              ))}
+              {shown.map(partRow)}
 
               {trolled.length > 0 && (
                 <>

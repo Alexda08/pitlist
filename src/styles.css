@@ -148,6 +148,15 @@ body{margin:0}
   text-transform:uppercase;letter-spacing:.08em;padding:6px 10px;cursor:pointer}
 .ghost:hover{border-color:var(--s2);color:var(--ink)}
 
+/* siguiente compra: la cola de lo que cae ahora, en ámbar */
+.sect.nexthead{color:var(--s2)}
+.sect.nexthead::after{border-color:rgba(245,165,36,.35)}
+.sect.nexthead .sum{color:var(--ink);font-size:11px;letter-spacing:.05em}
+.sect.listhead{margin-top:22px}
+.part.queued{background:linear-gradient(90deg,#241c0c,transparent);border-bottom-color:rgba(245,165,36,.25)}
+.ib.next.on{filter:none;opacity:1}
+.ib.next:hover{transform:scale(1.15)}
+
 /* troll zone */
 .trollhead{color:var(--troll)!important}
 .trollhead::after{border-color:var(--troll-dark)!important}
@@ -212,7 +221,15 @@ body{margin:0}
 
 /* ===== mensajes: hilos de comentarios (y luego chat de sala) ===== */
 .ib.chat .n{font-family:var(--mono);font-size:9px;margin-left:3px;opacity:.8}
+.ib.chat.has{filter:none;opacity:.85;color:var(--s2)}   /* con comentarios se ve, sin esperar al hover */
 .ib.chat.on{filter:none;opacity:1;color:var(--s2)}
+
+/* preview del último comentario en la propia fila */
+.cpreview{display:block;max-width:100%;background:none;border:none;padding:0;margin-top:4px;cursor:pointer;
+  font-family:var(--body);font-size:12px;color:var(--dim);text-align:left;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpreview b{color:var(--ink);font-weight:600}
+.cpreview:hover{color:var(--ink)}
 
 .thread{border-left:2px solid var(--line2);margin:0 0 12px 26px;padding:10px 0 4px 12px}
 
