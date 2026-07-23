@@ -1,7 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   emptyData, createGarage, fetchGarage, mutateGarage, subscribeGarage,
+  deleteMessagesForPart, deleteMessagesForProject,
 } from "./storage.js";
+import { useMessages } from "./useMessages.js";
+import { MessageList, Composer } from "./Messages.jsx";
+import { Chat, Presence } from "./Chat.jsx";
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
 const STATUSES = ["pendiente", "pedido", "recibido"];
@@ -106,11 +110,17 @@ function Garage({ code, onExit }) {
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", url: "", price: "", qty: "1" });
   const [showSheet, setShowSheet] = useState(false);
+  const [thread, setThread] = useState(null);
+  const [showChat, setShowChat] = useState(false);
   const activeRef = useRef(active);
   activeRef.current = active;
 
+  // chat de sala y comentarios: una sola carga y una sola suscripción para todo el garaje
+  const M = useMessages(code, me);
+
   useEffect(() => {
-    setConfirmDel(false); setConfirmPart(null); setEditing(null); setFilter("todas"); setShowSheet(false);
+    setConfirmDel(false); setConfirmPart(null); setEditing(null); setFilter("todas");
+    setShowSheet(false); setThread(null);
   }, [active]);
 
   // la confirmación de borrado de pieza caduca sola
@@ -127,6 +137,14 @@ function Garage({ code, onExit }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showSheet]);
+
+  // Esc cierra el chat (nunca están los dos abiertos: abrir uno cierra el otro)
+  useEffect(() => {
+    if (!showChat) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowChat(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showChat]);
 
   const applyData = useCallback((d) => {
     if (!d) return;
@@ -190,6 +208,8 @@ function Garage({ code, onExit }) {
       delete d.parts[id];
       return d;
     });
+    // sin esto, sus comentarios quedan huérfanos e invisibles en la tabla
+    deleteMessagesForProject(id).catch((e) => console.error("comentarios del build", e));
     setConfirmDel(false);
     setActive(next?.projects[0]?.id || null);
   };
@@ -265,8 +285,10 @@ function Garage({ code, onExit }) {
       return d;
     });
 
-  const delPart = (pid, partId) =>
-    mutate((d) => { d.parts[pid] = (d.parts[pid] || []).filter((x) => x.id !== partId); return d; });
+  const delPart = (pid, partId) => {
+    deleteMessagesForPart(partId).catch((e) => console.error("comentarios de la pieza", e));
+    return mutate((d) => { d.parts[pid] = (d.parts[pid] || []).filter((x) => x.id !== partId); return d; });
+  };
 
   const proj = data.projects.find((p) => p.id === active);
   const allParts = (active && data.parts[active]) || [];
@@ -300,6 +322,11 @@ function Garage({ code, onExit }) {
         <button className="chip" onClick={copyLink} title="Copiar link de invitación">
           🔧 <b>{code}</b> · {copied ? "¡copiado!" : "copiar"}
         </button>
+        <button className={"chip" + (M.unread ? " alert" : "")} title="Chat del garaje"
+          onClick={() => { setShowSheet(false); setShowChat(true); }}>
+          💬 chat{M.unread > 0 && <b> {M.unread}</b>}
+        </button>
+        <Presence people={M.people} cid={M.cid} />
         <span className="sync">
           <span className={"dot" + (synced && !saving ? "" : " off")} />
           <span className="txt">
@@ -418,7 +445,8 @@ function Garage({ code, onExit }) {
                   </div>
                 </div>
               ) : (
-                <div key={p.id} className={"part " + p.status}>
+                <Fragment key={p.id}>
+                <div className={"part " + p.status}>
                   <button className="stledbtn" onClick={() => setStatus(active, p.id, nextStatus(p.status))}
                     title={"Estado: " + p.status + " · click → " + nextStatus(p.status)}
                     aria-label={"Estado: " + p.status + ". Cambiar a " + nextStatus(p.status)}>
@@ -441,6 +469,12 @@ function Garage({ code, onExit }) {
                     {p.qty > 1 && <div className="qty">{p.qty} × {eur(p.price)}</div>}
                   </div>
                   <div className="acts">
+                    <button className={"ib chat" + (thread === p.id ? " on" : "")}
+                      onClick={() => setThread(thread === p.id ? null : p.id)}
+                      aria-label={`Comentarios de ${p.name} (${M.comments[p.id]?.length || 0})`}
+                      title="Comentarios">
+                      💬{(M.comments[p.id]?.length || 0) > 0 && <span className="n">{M.comments[p.id].length}</span>}
+                    </button>
                     <button className="ib" onClick={() => startEdit(p)} aria-label="Editar pieza" title="Editar">✎</button>
                     <button className="ib clown" onClick={() => toggleTroll(active, p.id)}
                       aria-label="Marcar como troleada" title="A la zona de troleo">🤡</button>
@@ -450,6 +484,17 @@ function Garage({ code, onExit }) {
                     </button>
                   </div>
                 </div>
+                {thread === p.id && (
+                  <div className="thread">
+                    <MessageList items={M.comments[p.id] || []} cid={M.cid}
+                      onDelete={M.remove} onResend={M.resend}
+                      empty="Sin comentarios todavía." />
+                    <Composer me={me} onName={saveMe} autoFocus
+                      placeholder="Comentar esta pieza…"
+                      onSend={(t) => M.send(t, { partId: p.id, projectId: active })} />
+                  </div>
+                )}
+                </Fragment>
               ))}
 
               {trolled.length > 0 && (
@@ -499,8 +544,8 @@ function Garage({ code, onExit }) {
         </main>
       </div>
 
-      {proj && !showSheet && (
-        <button className="fab" onClick={() => setShowSheet(true)}>+ Pieza</button>
+      {proj && !showSheet && !showChat && (
+        <button className="fab" onClick={() => { setShowChat(false); setShowSheet(true); }}>+ Pieza</button>
       )}
       {proj && showSheet && (
         <>
@@ -531,6 +576,9 @@ function Garage({ code, onExit }) {
           </div>
         </>
       )}
+
+      {/* el chat es de la sala: funciona aunque no haya ningún build creado */}
+      {showChat && <Chat M={M} me={me} onName={saveMe} onClose={() => setShowChat(false)} />}
     </>
   );
 }
