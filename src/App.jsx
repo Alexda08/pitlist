@@ -106,7 +106,8 @@ function Garage({ code, onExit }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [confirmPart, setConfirmPart] = useState(null);
   const [filter, setFilter] = useState("todas");
-  const [sort, setSort] = useState("recientes");
+  const [sort, setSort] = useState("manual");
+  const [drag, setDrag] = useState(null); // { id, list: 'main'|'queue', overId, after }
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", url: "", price: "", qty: "1" });
   const [showSheet, setShowSheet] = useState(false);
@@ -298,6 +299,61 @@ function Garage({ code, onExit }) {
       return d;
     });
 
+  // Reordenar por ids, no por índices: sobrevive al leer-último del blob si la lista cambió.
+  const movePart = (pid, dragId, targetId, after) =>
+    mutate((d) => {
+      const arr = d.parts[pid] || [];
+      const from = arr.findIndex((x) => x.id === dragId);
+      if (from < 0) return d;
+      const [part] = arr.splice(from, 1);
+      let to = arr.findIndex((x) => x.id === targetId);
+      if (to < 0) { arr.splice(from, 0, part); return d; }
+      arr.splice(after ? to + 1 : to, 0, part);
+      return d;
+    });
+
+  // La cola ordena por nextTs: reordenar renumera 1..n (los marcados nuevos, con
+  // Date.now(), siempre caen detrás).
+  const moveQueued = (pid, dragId, targetId, after) =>
+    mutate((d) => {
+      const q = (d.parts[pid] || []).filter((x) => x.next && !x.trolled)
+        .sort((a, b) => (a.nextTs || 0) - (b.nextTs || 0));
+      const from = q.findIndex((x) => x.id === dragId);
+      if (from < 0) return d;
+      const [part] = q.splice(from, 1);
+      let to = q.findIndex((x) => x.id === targetId);
+      if (to < 0) return d;
+      q.splice(after ? to + 1 : to, 0, part);
+      q.forEach((x, i) => { x.nextTs = i + 1; });
+      return d;
+    });
+
+  // Drag con pointer events (el DnD nativo de HTML5 no existe en táctil).
+  // El handle captura el puntero, así que move/up llegan siempre al handle.
+  const startDrag = (e, id, list) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ id, list, overId: null, after: false });
+  };
+  const overDrag = (e) => {
+    if (!drag) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-dragid]");
+    if (!el || el.dataset.draglist !== drag.list) {
+      setDrag((d) => d && d.overId !== null ? { ...d, overId: null } : d);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const overId = el.dataset.dragid;
+    const after = e.clientY > r.top + r.height / 2;
+    setDrag((d) => d && (d.overId !== overId || d.after !== after) ? { ...d, overId, after } : d);
+  };
+  const endDrag = () => {
+    if (drag?.overId && drag.overId !== drag.id) {
+      (drag.list === "queue" ? moveQueued : movePart)(active, drag.id, drag.overId, drag.after);
+    }
+    setDrag(null);
+  };
+
   const delPart = (pid, partId) => {
     deleteMessagesForPart(partId).catch((e) => console.error("comentarios de la pieza", e));
     return mutate((d) => { d.parts[pid] = (d.parts[pid] || []).filter((x) => x.id !== partId); return d; });
@@ -324,15 +380,17 @@ function Garage({ code, onExit }) {
   const listed = parts.filter((p) => !p.next);
   const counts = { todas: listed.length };
   for (const s of STATUSES) counts[s] = listed.filter((p) => p.status === s).length;
-  const shown = listed
-    .filter((p) => filter === "todas" || p.status === filter)
-    .sort((a, b) =>
-      sort === "precio" ? b.price * b.qty - a.price * a.qty
-      : sort === "estado" ? (STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status)) || ((b.ts || 0) - (a.ts || 0))
-      : (b.ts || 0) - (a.ts || 0));
+  // "manual" respeta el orden del array del blob, que es el que reescribe el drag & drop
+  const shown = listed.filter((p) => filter === "todas" || p.status === filter);
+  if (sort !== "manual") shown.sort((a, b) =>
+    sort === "precio" ? b.price * b.qty - a.price * a.qty
+    : sort === "estado" ? (STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status)) || ((b.ts || 0) - (a.ts || 0))
+    : (b.ts || 0) - (a.ts || 0));
+  // arrastrar una lista filtrada u ordenada por otro criterio no tiene resultado bien definido
+  const canDragList = sort === "manual" && filter === "todas";
 
   // Fila de pieza, compartida por la cola de "siguiente compra" y la lista normal.
-  const partRow = (p) => {
+  const partRow = (p, list = "main", idx = 0) => {
     if (editing === p.id) return (
       <div key={p.id} className="part editing">
         <div className="editform">
@@ -357,9 +415,13 @@ function Garage({ code, onExit }) {
     );
     const cs = M.comments[p.id] || [];
     const last = cs[cs.length - 1];
+    const draggable = list === "queue" || canDragList;
     return (
       <Fragment key={p.id}>
-      <div className={"part " + p.status + (p.next ? " queued" : "")}>
+      <div className={"part " + p.status + (p.next ? " queued" : "")
+          + (drag?.id === p.id ? " dragsrc" : "")
+          + (drag && drag.overId === p.id && drag.id !== p.id ? (drag.after ? " dropafter" : " dropbefore") : "")}
+        {...(draggable && { "data-dragid": p.id, "data-draglist": list })}>
         <button className="stledbtn" onClick={() => setStatus(active, p.id, nextStatus(p.status))}
           title={"Estado: " + p.status + " · click → " + nextStatus(p.status)}
           aria-label={"Estado: " + p.status + ". Cambiar a " + nextStatus(p.status)}>
@@ -367,6 +429,7 @@ function Garage({ code, onExit }) {
         </button>
         <div className="info">
           <div className="nm">
+            {list === "queue" && <b className="qpos">{idx + 1}</b>}
             {p.url
               ? <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc">{p.name}</a>
               : p.name}
@@ -404,6 +467,12 @@ function Garage({ code, onExit }) {
             onClick={() => askDelPart(p.id)} aria-label="Borrar pieza">
             {confirmPart === p.id ? "¿seguro?" : "✕"}
           </button>
+          {draggable && (
+            <button className="ib drag" title="Arrastrar para reordenar" aria-label="Arrastrar para reordenar"
+              onPointerDown={(e) => startDrag(e, p.id, list)}
+              onPointerMove={overDrag} onPointerUp={endDrag}
+              onPointerCancel={() => setDrag(null)}>⋮⋮</button>
+          )}
         </div>
       </div>
       {thread === p.id && (
@@ -483,7 +552,7 @@ function Garage({ code, onExit }) {
           )}
         </aside>
 
-        <main className="main">
+        <main className={"main" + (drag ? " dragging" : "")}>
           {proj ? (
             <>
               <div className="build">
@@ -513,7 +582,7 @@ function Garage({ code, onExit }) {
                   <div className="sect nexthead">
                     🎯 Siguiente compra · {queue.length} <span className="sum">{eur(nextTotal)}</span>
                   </div>
-                  {queue.map(partRow)}
+                  {queue.map((p, i) => partRow(p, "queue", i))}
                 </>
               )}
 
@@ -528,6 +597,7 @@ function Garage({ code, onExit }) {
                   ))}
                   <select className="sort" value={sort} onChange={(e) => setSort(e.target.value)}
                     aria-label="Ordenar piezas">
+                    <option value="manual">manual</option>
                     <option value="recientes">recientes</option>
                     <option value="precio">precio ↓</option>
                     <option value="estado">estado</option>
@@ -538,7 +608,7 @@ function Garage({ code, onExit }) {
               {allParts.length === 0 && <div className="empty">Sin piezas todavía. Dale a “+ Pieza”.</div>}
               {listed.length > 0 && shown.length === 0 && <div className="empty">Nada con este filtro.</div>}
 
-              {shown.map(partRow)}
+              {shown.map((p) => partRow(p, "main"))}
 
               {trolled.length > 0 && (
                 <>

@@ -156,6 +156,15 @@ body{margin:0}
 .part.queued{background:linear-gradient(90deg,#241c0c,transparent);border-bottom-color:rgba(245,165,36,.25)}
 .ib.next.on{filter:none;opacity:1}
 .ib.next:hover{transform:scale(1.15)}
+.qpos{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--s2);margin-right:7px}
+
+/* drag & drop de filas (pointer events: el DnD nativo no va en táctil) */
+.ib.drag{cursor:grab;touch-action:none;font-family:var(--mono);font-size:12px;letter-spacing:-2px;user-select:none}
+.ib.drag:active{cursor:grabbing}
+.main.dragging{cursor:grabbing;user-select:none}
+.part.dragsrc{opacity:.35}
+.part.dropbefore{box-shadow:inset 0 2px 0 var(--s2)}
+.part.dropafter{box-shadow:inset 0 -2px 0 var(--s2)}
 
 /* troll zone */
 .trollhead{color:var(--troll)!important}
