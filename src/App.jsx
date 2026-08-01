@@ -363,12 +363,17 @@ function Garage({ code, onExit }) {
   const allParts = (active && data.parts[active]) || [];
   const parts = allParts.filter((p) => !p.trolled);
   const trolled = allParts.filter((p) => p.trolled);
-  const porGastar = parts.filter((p) => p.status !== "recibido").reduce((s, p) => s + p.price * p.qty, 0);
-  const gastado = parts.filter((p) => p.status === "recibido").reduce((s, p) => s + p.price * p.qty, 0);
+  // lo pedido ya es dinero comprometido: cuenta como gastado, en ámbar hasta que llegue
+  const porGastar = parts.filter((p) => p.status === "pendiente").reduce((s, p) => s + p.price * p.qty, 0);
+  const gastado = parts.filter((p) => p.status !== "pendiente").reduce((s, p) => s + p.price * p.qty, 0);
+  const enCamino = parts.filter((p) => p.status === "pedido").reduce((s, p) => s + p.price * p.qty, 0);
   const recibidas = parts.filter((p) => p.status === "recibido").length;
+  const pedidas = parts.filter((p) => p.status === "pedido").length;
   const stagePct = parts.length ? Math.round((recibidas / parts.length) * 100) : 0;
+  // el stage y su % siguen siendo solo lo recibido; lo pedido se pinta aparte como provisional
+  const soonPct = parts.length ? Math.round(((recibidas + pedidas) / parts.length) * 100) : 0;
   const stage = stageOf(stagePct);
-  const segFill = (i) => Math.max(0, Math.min(1, (stagePct - i * (100 / 3)) / (100 / 3)));
+  const segFill = (pct, i) => Math.max(0, Math.min(1, (pct - i * (100 / 3)) / (100 / 3)));
   const stageForProject = (pid) => {
     const ps = (data.parts[pid] || []).filter((x) => !x.trolled);
     if (!ps.length) return 1;
@@ -563,16 +568,19 @@ function Garage({ code, onExit }) {
                   <div className="bar">
                     {[0, 1, 2].map((i) => (
                       <div key={i} className={"seg f" + (i + 1)}>
-                        <i style={{ transform: `scaleX(${segFill(i)})` }} />
+                        {pedidas > 0 && <i className="soon" style={{ transform: `scaleX(${segFill(soonPct, i)})` }} />}
+                        <i style={{ transform: `scaleX(${segFill(stagePct, i)})` }} />
                       </div>
                     ))}
                   </div>
-                  <span className="pct">{stagePct}% recibido</span>
+                  <span className="pct">
+                    {stagePct}% recibido{pedidas > 0 && <b className="soonpct"> +{soonPct - stagePct}% pedido</b>}
+                  </span>
                 </div>
                 <div className="readout">
                   <div className="r"><div className="l">Piezas</div><div className="v">{recibidas}<small>/{parts.length}</small></div></div>
                   <div className="r"><div className="l">Por gastar</div><div className="v hot">{eur(porGastar)}</div></div>
-                  <div className="r"><div className="l">Gastado</div><div className="v ok">{eur(gastado)}</div></div>
+                  <div className="r"><div className="l">Gastado</div><div className="v ok">{eur(gastado)}{enCamino > 0 && <small className="soon"> · {eur(enCamino)} en camino</small>}</div></div>
                   <div className="r"><div className="l">Troleadas</div><div className="v trl">{trolled.length}</div></div>
                 </div>
               </div>

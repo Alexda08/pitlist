@@ -87,7 +87,10 @@ body{margin:0}
 .seg.f1 i{background:linear-gradient(90deg,#cfd3da,var(--s1))}
 .seg.f2 i{background:linear-gradient(90deg,#d98f16,var(--s2))}
 .seg.f3 i{background:linear-gradient(90deg,#c41f13,var(--s3));box-shadow:0 0 12px rgba(255,46,31,.5)}
+/* tramo "pedido": rayado ámbar debajo del relleno sólido — dinero ya soltado, pieza aún en camino */
+.seg i.soon{background:repeating-linear-gradient(45deg,rgba(245,165,36,.5) 0 4px,rgba(245,165,36,.18) 4px 8px);box-shadow:none}
 .gauge .pct{font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap}
+.gauge .pct .soonpct{color:var(--s2);font-weight:600}
 
 /* dyno readout */
 .readout{display:flex;gap:26px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
@@ -96,6 +99,7 @@ body{margin:0}
 .readout .r .v{font-size:22px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
 .readout .r .v.hot{color:var(--s3)} .readout .r .v.ok{color:var(--green)} .readout .r .v.trl{color:var(--troll)}
 .readout .r .v small{font-size:11px;color:var(--dim)}
+.readout .r .v small.soon{color:var(--s2)}
 
 /* ===== parts ===== */
 .sect{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;

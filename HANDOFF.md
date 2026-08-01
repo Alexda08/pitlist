@@ -100,7 +100,7 @@ Append-only, con `kind` = `'chat'` | `'comment'` (los comentarios llevan `part_i
 
 ## Estado actual
 
-- ✅ Garajes por código, realtime, proyectos con placas, piezas (nombre/link/precio/uds), estados pendiente→pedido→recibido, totales por-gastar/gastado, zona de troleo con sello, nombre de autor por navegador (localStorage), copiar link de invitación.
+- ✅ Garajes por código, realtime, proyectos con placas, piezas (nombre/link/precio/uds), estados pendiente→pedido→recibido, totales por-gastar/gastado (lo **pedido** ya cuenta como gastado: en la barra de stage sale como tramo ámbar rayado provisional y en el readout como «en camino»; el Stage y su % siguen midiendo solo lo recibido), zona de troleo con sello, nombre de autor por navegador (localStorage), copiar link de invitación.
 - ✅ **Chat en vivo de la sala** (dock en escritorio, hoja en móvil), con no leídos, envío optimista con reintento seguro, borrado con doble confirmación y enlaces auto-detectados. Sin edición: los mensajes son inmutables.
 - ✅ **Presencia**: quién está en el garaje ahora mismo, en la barra superior y en la cabecera del chat.
 - ✅ **Comentarios por pieza** en hilo desplegable, con contador en la fila. Borrar una pieza o un build borra sus comentarios. La fila muestra un **preview del último comentario** (clicable, abre el hilo) y el 💬 se pinta en ámbar cuando hay conversación.
